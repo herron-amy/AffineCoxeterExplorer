@@ -1,5 +1,5 @@
 ╔══════════════════════════════════════════════════════════════╗
-║       Affine Coxeter Explorer  —  README                  ║
+║       Affine Coxeter Explorer  —  README                     ║
 ╚══════════════════════════════════════════════════════════════╝
 
 
@@ -133,6 +133,15 @@ VISUAL FEATURES
                                        currently in the set being
                                        computed (conjugacy class or
                                        coconjugation set)
+  * Alcove fill colors:                encode the spherical direction.
+                                       Dimension 2: every element of the
+                                       finite Weyl group has its own
+                                       color. Dimension 3: conjugacy-
+                                       class figures use distinct colors
+                                       within the class; coconjugation
+                                       figures use one color per
+                                       conjugacy class, so equal color
+                                       means conjugate finite parts
   * Wireframe grid:                    all alcoves within the
                                        bounding box shown in gray
   * Coroot axes (dimension 2):              labeled with alpha^v_1 and
