@@ -845,13 +845,16 @@ def _aff2_reflect_cc(letter, tp, cp_tmp, H0dict, keys, B=None, bounding_box=None
              keys['s2121']:[[-1,0],[0,-1]]}
     # If new-style arguments provided, use generator-based enumeration
     if B is not None and bounding_box is not None:
+        # Mod-set generators of the INPUT's spherical direction cp_tmp:
+        # by Theorem 2.6 every component transports Mod(w) for the one input w,
+        # so cp_tmp (not the loop variable k) must supply the generators.
+        old_gens = H0dict[cp_tmp].get('mod_generators', [])
         for k in H0dict:
             if k not in M: continue
             mat = matrix(ZZ, M[k])
             # R_k * tp gives the new base point
             new_base = vector(mat * vector(tp))
             # R_k applied to each mod_generator
-            old_gens = H0dict[k].get('mod_generators', [])
             new_gens = [vector(mat * vector(g)) for g in old_gens]
             # Enumerate lattice points of {new_base + sum(n_i * new_gens[i])} in bbox
             pts = _enumerate_affine_sublattice_2d(new_base, new_gens, B, bounding_box)
@@ -1475,24 +1478,76 @@ def _a3_get_keyname(w):
     return 'identity' if not rw else 's'+''.join(str(x) for x in rw)
 
 
+def _a3_cycle_type(rw):
+    """Cycle type in Sym(4) of the W(A_3) element with reduced word rw,
+    via s_1 -> (1,2), s_2 -> (2,3), s_3 -> (3,4)."""
+    S4 = SymmetricGroup(4)
+    gens = {1: S4("(1,2)"), 2: S4("(2,3)"), 3: S4("(3,4)")}
+    p = S4.one()
+    for i in rw:
+        p = p * gens[i]
+    return tuple(sorted(p.cycle_type(), reverse=True))
+
+
 def _a3_H0_alcoves_dict(setup):
+    """Fundamental alcoves of W(A_3) with CONJUGACY-CLASS colors:
+    elements in the same conjugacy class (= same Sym(4) cycle type, since
+    W(A_3) = Sym(4)) receive DISTINCT colors, so that within a single
+    conjugacy-class figure every spherical direction is distinguishable.
+    Colors are assigned within each cycle type in sorted reduced-word order,
+    so the assignment is deterministic and independent of SageMath's
+    iteration order over W_finite."""
     W_fin = setup['W_finite']; alcove_verts = setup['alcove_verts_ambient']
+    identity_color = (0.7,1.0,1.0)   # light cyan
+    # Largest conjugacy class in Sym(4) has 8 elements (3-cycles).
+    _palette = [
+        (1.0,0.7,1.0),   # light magenta
+        (0.7,1.0,0.7),   # light lime
+        (1.0,1.0,0.7),   # light yellow
+        (0.7,0.8,1.0),   # light cornflowerblue
+        (1.0,0.8,0.5),   # light darkorange
+        (0.8,0.7,1.0),   # light darkorchid
+        (0.8,0.8,0.8),   # light gray
+        (1.0,0.7,0.7),   # light red
+    ]
     H0 = {}
     for w in W_fin:
         verts = [vector(_a3_to_3d(list(w.action(v).to_vector()))) for v in alcove_verts]
-        H0[w] = {'vertices':verts,'color':(0.8,0.8,0.8),'reduced_word':tuple(w.reduced_word())}
-    # Assign individual colors by index (matching original notebook)
-    _colors = [
-        (0.7,1.0,1.0),(1.0,0.7,1.0),(0.7,1.0,0.7),(1.0,1.0,0.7),
-        (1.0,0.7,1.0),(0.7,1.0,0.7),(1.0,1.0,0.7),(0.7,0.8,1.0),
-        (1.0,0.8,0.5),(0.8,0.7,1.0),(0.8,0.8,0.8),(1.0,0.7,0.7),
-        (1.0,0.7,1.0),(0.7,1.0,0.7),(1.0,0.7,1.0),(0.7,1.0,0.7),
-        (1.0,1.0,0.7),(1.0,1.0,0.7),(0.7,0.8,1.0),(0.8,0.7,1.0),
-        (0.7,0.8,1.0),(1.0,0.8,0.5),(1.0,0.8,0.5),(0.8,0.7,1.0),
-    ]
-    for i,w in enumerate(H0.keys()):
-        if i < len(_colors):
-            H0[w]['color'] = _colors[i]
+        H0[w] = {'vertices':verts,'color':identity_color,'reduced_word':tuple(w.reduced_word())}
+    # Group by cycle type, then color within each type in sorted reduced-word order.
+    by_ct = {}
+    for w, info in H0.items():
+        by_ct.setdefault(_a3_cycle_type(info['reduced_word']), []).append(w)
+    for ct, ws in by_ct.items():
+        if ct == (1,1,1,1):
+            continue  # identity keeps light cyan
+        ws.sort(key=lambda w: (len(H0[w]['reduced_word']), H0[w]['reduced_word']))
+        for i, w in enumerate(ws):
+            H0[w]['color'] = _palette[i % len(_palette)]
+    return H0
+
+
+def _a3_H0_alcoves_dict_cocon(setup):
+    """Fundamental alcoves of W(A_3) with COCONJUGATION colors:
+    all elements in the same conjugacy class receive the SAME color, so that
+    in a coconjugation figure (which meets several conjugacy classes) equal
+    color means conjugate in W_0. Valid because W(A_3) = Sym(4), where cycle
+    type determines the conjugacy class."""
+    W_fin = setup['W_finite']; alcove_verts = setup['alcove_verts_ambient']
+    identity_color = (0.7,1.0,1.0)   # light cyan
+    cycle_type_to_color = {
+        (2, 1, 1): (1.0, 0.7, 1.0),   # light magenta
+        (2, 2):    (0.7, 1.0, 0.7),   # light lime
+        (3, 1):    (1.0, 1.0, 0.7),   # light yellow
+        (4,):      (0.7, 0.8, 1.0),   # light cornflowerblue
+    }
+    H0 = {}
+    for w in W_fin:
+        verts = [vector(_a3_to_3d(list(w.action(v).to_vector()))) for v in alcove_verts]
+        rw = tuple(w.reduced_word())
+        ct = _a3_cycle_type(rw)
+        color = identity_color if ct == (1,1,1,1) else cycle_type_to_color[ct]
+        H0[w] = {'vertices':verts,'color':color,'reduced_word':rw}
     return H0
 
 
@@ -2001,7 +2056,7 @@ def _r3_plot_colored_alcove_a3(p_col, p_lab, drawn, ew, trans_vec, color, border
 def _Cocon_Elements_A3(elt1, elt2, bbox):
     """Coconjugation in Ã₃."""
     setup = _a3_setup(); B = setup['B']; S_weyl = setup['S_weyl']; identity = setup['identity']
-    H0dict = _a3_H0_alcoves_dict(setup)
+    H0dict = _a3_H0_alcoves_dict_cocon(setup)
     crv_in_B = _r3_get_coroot_vertices_in_B(bbox)
     fw1,tv1,rw1,fp1 = _a3_get_element_parts(elt1,setup)
     fw2,tv2,rw2,fp2 = _a3_get_element_parts(elt2,setup)
@@ -2186,7 +2241,19 @@ def _bc3_get_element_parts(elt_string, setup):
     return fin_weyl, trans_vec, rw, fp
 
 
-def _bc3_H0_alcoves_dict(setup):
+def _bc3_H0_alcoves_dict(setup, scheme='conj'):
+    """Fundamental alcoves of W(B_3) = W(C_3), colored by conjugacy class.
+    W_0 has 10 conjugacy classes; note that Sym(6) cycle type does NOT
+    determine the class here (types (2,2,1,1) and (2,2,2) each split into
+    two classes), so both tables below are keyed on reduced words and
+    organised by the actual classes.
+
+    scheme='conj'  (conjugacy-class figures): elements in the same class
+        receive DISTINCT colors, so every spherical direction in a single
+        conjugacy class is distinguishable.
+    scheme='cocon' (coconjugation figures): all elements in a class receive
+        the SAME color, so that equal color means conjugate in W_0 in a
+        figure that meets several classes."""
     letter = setup['letter']; W_fin = setup['W_finite']; ambient = setup['ambient']
     if letter == 'B':
         origin = vector(QQ,[0,0,0]); omega3 = vector(QQ,[1/2,1/2,1/2])
@@ -2200,7 +2267,39 @@ def _bc3_H0_alcoves_dict(setup):
     light_magenta = (1.0,0.7,1.0); light_lime = (0.7,1.0,0.7); light_yellow = (1.0,1.0,0.7)
     light_cb = (0.7,0.8,1.0); light_do = (1.0,0.8,0.5); light_dor = (0.8,0.7,1.0)
     light_gray = (0.8,0.8,0.8); light_red = (1.0,0.7,0.7); light_pink = (1.0,0.85,0.9)
-    # color by conjugacy class (same for B3 and C3 since W(B3)=W(C3))
+    # COCONJUGATION table: one color per conjugacy class (10 classes, 10 colors)
+    cbw_cocon = {
+        # Class 1: Identity (1 element) - light cyan
+        ():identity_color,
+        # Class 2: size 3 - light magenta
+        (3,):light_magenta,(2,3,2):light_magenta,(1,2,3,2,1):light_magenta,
+        # Class 3: size 6 - light lime
+        (2,):light_lime,(3,1,2,3,1):light_lime,(1,):light_lime,
+        (1,2,1):light_lime,(2,3,1,2,3,1,2):light_lime,(3,2,3):light_lime,
+        # Class 4: size 8 - light yellow
+        (2,1):light_yellow,(2,3,1,2,3,2):light_yellow,(3,1,2,3,1,2):light_yellow,
+        (3,1,2,3):light_yellow,(1,2):light_yellow,(2,3,1,2,3,1):light_yellow,
+        (3,2,3,1,2,1):light_yellow,(3,2,3,1):light_yellow,
+        # Class 5: size 6 - light cornflowerblue
+        (3,2):light_cb,(2,3):light_cb,(2,3,2,1):light_cb,
+        (3,1,2,1):light_cb,(1,2,3,2):light_cb,(1,2,3,1):light_cb,
+        # Class 6: size 8 - light darkorange
+        (3,2,1):light_do,(2,3,1):light_do,(2,3,1,2,1):light_do,
+        (3,2,3,1,2,3,2):light_do,(3,1,2):light_do,(1,2,3):light_do,
+        (1,2,3,1,2):light_do,(3,2,3,1,2,3,1):light_do,
+        # Class 7: size 6 - light darkorchid
+        (2,3,1,2):light_dor,(3,2,3,1,2,3,2,1):light_dor,(3,1):light_dor,
+        (1,2,3,1,2,1):light_dor,(3,2,3,1,2,3,1,2):light_dor,(3,2,3,1,2,3):light_dor,
+        # Class 8: size 6 - light gray
+        (2,3,1,2,3,2,1):light_gray,(3,1,2,3,1,2,1):light_gray,
+        (3,1,2,3,2):light_gray,(2,3,1,2,3):light_gray,
+        (3,2,3,2,1):light_gray,(3,2,3,1,2):light_gray,
+        # Class 9: size 3 (SECOND class of cycle type (2,2,1,1)) - light red
+        (2,3,1,2,3,1,2,1):light_red,(3,1,2,3,2,1):light_red,(3,2,3,2):light_red,
+        # Class 10: central element (SECOND class of cycle type (2,2,2)) - light pink
+        (3,2,3,1,2,3,1,2,1):light_pink,
+    }
+    # CONJUGACY-CLASS table: distinct colors within each class
     cbw = {
         # Class 1: Identity
         ():(0.7,1.0,1.0),
@@ -2232,6 +2331,7 @@ def _bc3_H0_alcoves_dict(setup):
         # Class 10: central element
         (3,2,3,1,2,3,1,2,1):light_magenta,
     }
+    table = cbw_cocon if scheme == 'cocon' else cbw
     H0 = {}
     for w in W_fin:
         rw = tuple(w.reduced_word())
@@ -2239,7 +2339,10 @@ def _bc3_H0_alcoves_dict(setup):
         for v in fund_verts:
             av = ambient.from_vector(vector(QQ,list(v)))
             tv.append(vector(QQ,list(w.action(av).to_vector())[:3]))
-        color = cbw.get(rw,(0.5,0.5,0.5))
+        color = table.get(rw)
+        if color is None:
+            print("WARNING: reduced word %s not found in %s color table!" % (str(rw), scheme))
+            color = (0.5,0.5,0.5)
         H0[w] = {'vertices':tv,'color':color,'reduced_word':rw}
     return H0
 
@@ -2976,7 +3079,7 @@ def _Cocon_Elements_BC3(letter, elt1, elt2, bbox):
     """Coconjugation in B̃₃ or C̃₃."""
     setup = _bc3_setup(letter); B = setup['B']
     S_weyl = setup['S_weyl']; identity = setup['identity']
-    H0dict = _bc3_H0_alcoves_dict(setup)
+    H0dict = _bc3_H0_alcoves_dict(setup, scheme='cocon')
     crv_in_B = _r3_get_coroot_vertices_in_B(bbox)
     fw1,tv1,rw1,fp1 = _bc3_get_element_parts(elt1,setup)
     fw2,tv2,rw2,fp2 = _bc3_get_element_parts(elt2,setup)
