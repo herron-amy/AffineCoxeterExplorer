@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Affine Coxeter Explorer"
+version: "1.1"
+date-released: "2026-07-22"
+doi: 10.5281/zenodo.21495268
+repository-code: "https://github.com/herron-amy/AffineCoxeterExplorer"
+authors:
+  - family-names: Herron
+    given-names: Amy
+    affiliation: "University of Bristol"
